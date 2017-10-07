@@ -1,0 +1,16 @@
+{
+  "regression": {
+    "random-forest": {
+      "n-estimators": 50,
+      "n-jobs": -1
+    },
+    "boosted-trees": {
+      "max-depth": 10
+    },
+    "mlp": {
+      "hidden-layers": "(100, 50, 20, 5)",
+      "activation-function": "relu",
+      "max-iter": 1000
+    }
+  }
+}
