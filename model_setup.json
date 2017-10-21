@@ -11,6 +11,9 @@
       "hidden-layers": "(100, 50, 20, 5)",
       "activation-function": "relu",
       "max-iter": 1000
+    },
+    "xgboost": {
+      "nothing": 1
     }
   }
 }
