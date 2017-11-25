@@ -27,8 +27,12 @@ def main():
     # kwargs.model = "rf" #
     data, temporal_validation = get_data()
     datasets = DataSets(data,
+                        encode_string=False,
+                        one_hot_encode=False,
+                        categ_to_num=True,
                         link="root_7",
-                        transformations={'t-1': "root_7", 't-2': "root_7", 't-3': "root_7", 't-6': "root_7", 't-7': "root_7"})
+                        transformations={'t-1': "root_7", 't-2': "root_7", 't-3': "root_7",
+                                         't-6': "root_7", 't-7': "root_7"})
     reg_conf = get_regressor_conf(regression_map[kwargs.model].get("key"))
     res = regression_map[kwargs.model].get("function")(reg_conf, datasets, temporal_validation)
     logg_result(res, reg_conf, regression_map[kwargs.model].get("key"))

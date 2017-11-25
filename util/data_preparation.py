@@ -61,8 +61,11 @@ class DataSets(object):
     }
 
     def __init__(self, data, split_vals=DEFAULT_SPLIT, encode_string=True,
-                 one_hot_encode=True, predictive_var="value", link="identity",
+                 one_hot_encode=True, categ_to_num=False,
+                 predictive_var="value", link="identity",
                  transformations={}):
+        self._train_reference = split_vals["train"]
+        self._test_validate_reference = split_vals["train"] + split_vals["test"]
         data[predictive_var] = self.response_function[link](data[predictive_var].values.astype(np.float))
         if transformations:
             for col in transformations:
@@ -74,18 +77,23 @@ class DataSets(object):
         self.string_encoder = {}
         self.one_hot_encoder = {}
         self.string_cols = None
+        self.category_encoder = {}
         self.data = data.reset_index(drop=True)
+        self.shuffle_index = self.data.sample(frac=1).index
+        self.encode_string_required = encode_string
+        self.categ_to_num_required = categ_to_num
         if encode_string:
             self._encode_string()
+        elif categ_to_num:
+            self.category_to_numeric()
         self.n, self.m = data.shape
-        self._train_reference = split_vals["train"]
-        self._test_validate_reference = split_vals["train"] + split_vals["test"]
         self._split_data()
 
     def _split_data(self):
+        n = len(self.data)
         self.train, self.test, self.validate = np.split(
-            self.data.sample(frac=1),
-            [int(self.n * self._train_reference), int(self.n * self._test_validate_reference)])
+            self.data.loc[self.shuffle_index],
+            [int(n * self._train_reference), int(n * self._test_validate_reference)])
 
     def get_train(self, output_var=False, apply_inverse=False):
         if output_var:
@@ -107,6 +115,13 @@ class DataSets(object):
                 return self.inverse_function[self.link](self.validate[self.predictive_var].values)
             return self.validate[self.predictive_var].values
         return self.validate[self.validate.columns[self.validate.columns != self.predictive_var]]
+
+    def category_to_numeric(self):
+        self.string_cols = self.data.dtypes.to_frame()[(self.data.dtypes.to_frame() == 'object').values].index.values
+        self._split_data()
+        for col in self.string_cols:
+            self.category_encoder[col] = self.train.groupby(col).value.mean().to_dict()
+            self.data[col] = self.data[col].replace(self.category_encoder[col])
 
     def _encode_string(self):
         sub_data = self.data[self.data.columns[self.data.columns != self.predictive_var]]
@@ -136,15 +151,19 @@ class DataSets(object):
                 df[col] = self.functions[self.transformations[col]](df[col].values.astype(np.float))
         df = df.reset_index(drop=True)
         for col in self.string_cols:
-            LE = self.string_encoder[col]
-            classes = [col + "_" + str(i) for i in range(len(LE.classes_))]
-            df[col] = LE.transform(df[col])
-            if self.one_hot_encode:
-                OHE = self.one_hot_encoder[col]
-                vals = OHE.fit_transform(df[col].values.reshape(-1, 1)).toarray()
-                temp = pd.DataFrame(vals, columns=classes)
-                df = pd.concat([df, temp], axis=1)
-                del df[col]
+            if self.encode_string_required:
+                LE = self.string_encoder[col]
+                classes = [col + "_" + str(i) for i in range(len(LE.classes_))]
+                df[col] = LE.transform(df[col])
+                if self.one_hot_encode:
+                    OHE = self.one_hot_encoder[col]
+                    vals = OHE.fit_transform(df[col].values.reshape(-1, 1)).toarray()
+                    temp = pd.DataFrame(vals, columns=classes)
+                    df = pd.concat([df, temp], axis=1)
+                    del df[col]
+            elif self.categ_to_num_required:
+                df[col] = df[col].replace(self.category_encoder[col])
+
         return df[df.columns[df.columns != self.predictive_var]]
 
 
