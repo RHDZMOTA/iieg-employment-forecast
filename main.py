@@ -14,8 +14,9 @@ from util.regression import get_regressor_conf
 def prediction_2017(temporal_validation, res):
     year_2017 = temporal_validation.copy()
     year_2017["forecast"] = res.prediction("validate", apply_inverse=True)
-    year_2017.groupby("month").sum()[["value", "forecast"]].plot()
-    plt.title("Validation Data: Insured Employment 2017")
+    year_2017["x"] = year_2017.apply(lambda x: x["year"] + x["month"] / 13, 1)
+    year_2017.groupby("x").sum()[["value", "forecast"]].plot()
+    plt.title("Validation Data: Insured Employment")
     plt.xlabel("Months")
 
 

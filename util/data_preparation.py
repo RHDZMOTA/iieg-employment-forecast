@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 
 from scipy import stats
 from conf import settings
+from conf.settings import CONNECTION_STRING
+from sqlalchemy import create_engine
 from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -244,11 +246,23 @@ def get_data():
         df = pd.read_pickle("data/datasets/data.pickle")
         temporal_validation = pd.read_pickle("data/datasets/temporal_validation.pickle")
         return df, temporal_validation
-    raw_df = pd.read_pickle(settings.DataFilesConf.FileNames.insured_employment_pickle)
-    value_cols = [col for col in raw_df.columns if has_month(col)]
-    id_cols = [col for col in raw_df.columns if not has_month(col)]
-    df = pd.melt(raw_df, id_vars=id_cols, value_vars=value_cols)
-    df["year"], df["month"] = df.variable.str.split("_").str
+    engine = create_engine(CONNECTION_STRING)
+    #raw_df = pd.read_pickle(settings.DataFilesConf.FileNames.insured_employment_pickle)
+    #value_cols = [col for col in raw_df.columns if has_month(col)]
+    #id_cols = [col for col in raw_df.columns if not has_month(col)]
+    #df = pd.melt(raw_df, id_vars=id_cols, value_vars=value_cols)
+    col_names = {
+        "division_economica": "economic_division",
+        "genero": "gender",
+        "edad": "age_range",
+        "ta": "value",
+        "etiqueta_mes": "variable"
+    }
+    sql_query = "SELECT * FROM insured_employment;"
+    df = pd.read_sql_query(sql_query, con=engine)
+    del df["fecha"]
+    df = df.rename(columns=col_names)
+    df["year"], df["month"] = df.variable.str.split("/").str
     df["month"] = df["month"].replace(MONTHS)
     df["year"] = df["year"].values.astype(np.float)
     del df["variable"]
