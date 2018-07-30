@@ -33,6 +33,7 @@ DEFAULT_SPLIT = {
 }
 
 MAX_LAGS = 8
+MIN_LAG = 0
 
 ALPHA = 0.10
 
@@ -65,12 +66,15 @@ class DataSets(object):
     def __init__(self, data, split_vals=DEFAULT_SPLIT, encode_string=True,
                  one_hot_encode=True, categ_to_num=False,
                  predictive_var="value", link="identity",
-                 transformations={}):
+                 transformations={}, shuffle=False):
+        self.shuffle = shuffle
         self._train_reference = split_vals["train"]
         self._test_validate_reference = split_vals["train"] + split_vals["test"]
         data[predictive_var] = self.response_function[link](data[predictive_var].values.astype(np.float))
         if transformations:
             for col in transformations:
+                if col not in data.columns:
+                    continue
                 data[col] = self.functions[transformations[col]](data[col].values.astype(np.float))
         self.link = link
         self.predictive_var = predictive_var
@@ -92,9 +96,10 @@ class DataSets(object):
         self._split_data()
 
     def _split_data(self):
+        df = self.data.loc[self.shuffle_index] if self.shuffle else self.data
         n = len(self.data)
         self.train, self.test, self.validate = np.split(
-            self.data.loc[self.shuffle_index],
+            df,
             [int(n * self._train_reference), int(n * self._test_validate_reference)])
 
     def get_train(self, output_var=False, apply_inverse=False):
@@ -150,6 +155,8 @@ class DataSets(object):
             return self.response_function[self.link](df[self.predictive_var].values.astype(np.float))
         if self.transformations:
             for col in self.transformations:
+                if col not in self.data.columns:
+                    continue
                 df[col] = self.functions[self.transformations[col]](df[col].values.astype(np.float))
         df = df.reset_index(drop=True)
         for col in self.string_cols:
@@ -176,8 +183,9 @@ def has_month(string):
     return False
 
 
-def optimize_lags(time_series_vector, plot=False, max_lags=None):
+def optimize_lags(time_series_vector, plot=False, max_lags=None, min_lag=None):
     max_lags = max_lags if max_lags else MAX_LAGS
+    min_lag = min_lag if min_lag else MIN_LAG
 
     def is_significant(value, threshold):
         return (value <= -threshold) or (value >= threshold)
@@ -185,7 +193,7 @@ def optimize_lags(time_series_vector, plot=False, max_lags=None):
     def confident_lags(pacf_vector, threshold):
         compare_zip = zip(map(lambda x: is_significant(x, threshold), pacf_vector),
                           range(len(pacf_vect)))
-        return [val[1] for val in compare_zip if val[0]]
+        return [val[1] for val in compare_zip if val[0] and val[1] > min_lag]
 
     significance_threshold = stats.norm.ppf(1 - ALPHA) / np.sqrt(len(time_series_vector))
     if plot:
@@ -196,7 +204,7 @@ def optimize_lags(time_series_vector, plot=False, max_lags=None):
     return lags
 
 
-def suggested_lags(df, cols, frequency=0.05, plot=False):
+def suggested_lags(df, cols, frequency=0.05, plot=False, min_lag=0):
 
     def get_by_recursive_combinations(df, cols, n_lags=[]):
         unique_vals = df[cols[0]].unique()
@@ -204,7 +212,7 @@ def suggested_lags(df, cols, frequency=0.05, plot=False):
             sub_df = df.query("{} == '{}'".format(cols[0], val))
             if sub_df.value.std() < 1:
                 continue
-            n_lags += (optimize_lags(sub_df.value) if len(cols)==1 else get_by_recursive_combinations(
+            n_lags += (optimize_lags(sub_df.value, min_lag=min_lag) if len(cols)==1 else get_by_recursive_combinations(
                 sub_df, cols[1:], n_lags=[]))
         return list(filter(lambda x: x > 0, n_lags))
 
@@ -241,8 +249,8 @@ def add_lags_recursive(df, cols, lags, result_df=pd.DataFrame([])):
     return result_df
 
 
-def get_data():
-    if os.path.exists("data/datasets/data.pickle"):
+def get_data(min_lag=0, save=True, read=True):
+    if os.path.exists("data/datasets/data.pickle") and read:
         df = pd.read_pickle("data/datasets/data.pickle")
         temporal_validation = pd.read_pickle("data/datasets/temporal_validation.pickle")
         return df, temporal_validation
@@ -271,13 +279,14 @@ def get_data():
     df["time"] = (df.year + (df.month-1) / 12).values
     # LAGS
     cols = ["economic_division", "age_range", "gender"]
-    lags = suggested_lags(df, cols, frequency=0.05)
+    lags = suggested_lags(df, cols, frequency=0.05, min_lag=min_lag)
     df = add_lags_recursive(df, cols, lags).sort_index().dropna()
     # Temporal validation
     temporal_validation = df.query("time >= 2017").sort_values("time").reset_index(drop=True)
     df = df.query("time < 2017").sort_values("time").reset_index(drop=True)
     del df["time"]
     del temporal_validation["time"]
-    df.to_pickle("data/datasets/data.pickle")
-    temporal_validation.to_pickle("data/datasets/temporal_validation.pickle")
-    return df, temporal_validation
+    if save:
+        df.to_pickle("data/datasets/data.pickle")
+        temporal_validation.to_pickle("data/datasets/temporal_validation.pickle")
+    return df, temporal_validation, lags
