@@ -11,6 +11,12 @@ from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
+
+# import psycopg2
+#import psycopg2.extensions
+#psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+#psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
+
 MONTHS = {
         "Enero": 1,
         "Febrero": 2,
@@ -252,8 +258,13 @@ def add_lags_recursive(df, cols, lags, result_df=pd.DataFrame([])):
 def get_data(min_lag=0, save=True, read=True):
     if os.path.exists("data/datasets/data.pickle") and read:
         df = pd.read_pickle("data/datasets/data.pickle")
+        base_cols = [c for c in df.columns.values if "t-" not in str(c)]
         temporal_validation = pd.read_pickle("data/datasets/temporal_validation.pickle")
-        return df, temporal_validation
+        # LAGS
+        cols = ["economic_division", "age_range", "gender"]
+        lags = suggested_lags(df, cols, frequency=0.05, min_lag=min_lag)
+        cs = list(set(df.columns.tolist()).intersection(["t-" + str(lg) for lg in lags]))
+        return df[base_cols + cs], temporal_validation[base_cols + cs], lags
     engine = create_engine(CONNECTION_STRING)
     #raw_df = pd.read_pickle(settings.DataFilesConf.FileNames.insured_employment_pickle)
     #value_cols = [col for col in raw_df.columns if has_month(col)]

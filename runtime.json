@@ -1,0 +1,26 @@
+{
+  "model": "rf",
+  "link": "root_7",
+  "transformations": {
+    "t-1": "root_7",
+    "t-2": "root_7",
+    "t-3": "root_7",
+    "t-6": "root_7",
+    "t-7": "root_7",
+    "t-8": "root_7",
+    "t-9": "root_7",
+    "t-10": "root_7",
+    "t-11": "root_7",
+    "t-12": "root_7",
+    "t-13": "root_7",
+    "t-14": "root_7",
+    "t-15": "root_7",
+    "t-16": "root_7",
+    "t-17": "root_7",
+    "t-18": "root_7"
+  },
+  "plot": true,
+  "one-hot-encoding": false,
+  "category-to-numeric": true,
+  "min-lag": 12
+}
